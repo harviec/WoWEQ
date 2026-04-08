@@ -1,4 +1,4 @@
--- WoWEQ.lua (v1.1.1)
+-- WoWEQ.lua (v1.1.2)
 -- Audio-reactive frequency equalizer for WoW Midnight (Patch 12.x)
 --
 -- Bar layout: horizontal strips stacked vertically inside two side panels.
@@ -39,10 +39,12 @@ local CFG = {
     PEAK_FALL     = 3.0,    -- peak fall speed multiplier
 
     -- idle / ambient animation
-    IDLE_FREQ_LO  = 0.25,   -- Hz: slow oscillation on bass bands
-    IDLE_FREQ_HI  = 1.80,   -- Hz: fast oscillation on treble bands
-    IDLE_AMP_BASE = 0.05,   -- amplitude when out of combat
-    IDLE_AMP_COMB = 0.11,   -- amplitude when in combat
+    IDLE_FREQ_LO  = 0.20,   -- Hz: slow oscillation on bass bands
+    IDLE_FREQ_HI  = 2.00,   -- Hz: fast oscillation on treble bands
+    -- Peak amplitude for bass band at idle; treble gets ~45% of this.
+    -- In combat the whole spectrum rises significantly.
+    IDLE_AMP_BASE = 0.30,   -- bass peak amplitude out of combat
+    IDLE_AMP_COMB = 0.55,   -- bass peak amplitude in combat
 }
 
 -- ============================================================
@@ -231,10 +233,12 @@ end
 -- ============================================================
 -- Sound hooks → broadband bursts
 -- ============================================================
-hooksecurefunc("PlaySound",     function() InjectAll(0.20) end)
-hooksecurefunc("PlaySoundFile", function() InjectAll(0.15) end)
+-- UI sounds are predominantly mid/high range; avoid InjectAll which flattens
+-- all bands to the same level and erases frequency variation.
+hooksecurefunc("PlaySound",     function() InjectMid(0.12); InjectHigh(0.08) end)
+hooksecurefunc("PlaySoundFile", function() InjectMid(0.10); InjectHigh(0.06) end)
 if C_Sound and C_Sound.PlaySound then
-    pcall(hooksecurefunc, C_Sound, "PlaySound", function() InjectAll(0.20) end)
+    pcall(hooksecurefunc, C_Sound, "PlaySound", function() InjectMid(0.12); InjectHigh(0.08) end)
 end
 
 -- ============================================================
@@ -276,18 +280,25 @@ end
 -- Animation: compute target amplitude for one band (0-1)
 -- ============================================================
 local function ComputeTarget(band)
-    local bs  = S.barState[band]
-    local ff  = FreqFrac(band)
+    local bs = S.barState[band]
+    local ff = FreqFrac(band)  -- 0 = bass, 1 = treble
 
-    -- Bass bands oscillate slowly; treble bands oscillate quickly (physically realistic)
+    -- Bass oscillates slowly, treble quickly — matches real acoustic behaviour
     local freq = lerp(CFG.IDLE_FREQ_LO, CFG.IDLE_FREQ_HI, ff)
-    if S.inCombat then freq = freq * 2.2 end
+    if S.inCombat then freq = freq * 2.0 end
 
-    local amp   = S.inCombat and CFG.IDLE_AMP_COMB or CFG.IDLE_AMP_BASE
-    local wave  = (math.sin(S.elapsed * freq         + bs.phase)       * 0.5 + 0.5) * amp
-    local noise = (math.sin(S.elapsed * freq * 1.618 + bs.phase * 2.1) * 0.5 + 0.5) * amp * 0.40
+    -- Bass has a naturally higher resting amplitude than treble.
+    -- At idle bass sits at ~IDLE_AMP_BASE; treble sits at ~45% of that.
+    -- This creates a visible slope across the panel even with no events.
+    local ampPeak = S.inCombat and CFG.IDLE_AMP_COMB or CFG.IDLE_AMP_BASE
+    local bandAmp = ampPeak * lerp(1.0, 0.45, ff)
 
-    return clamp(wave + noise + (S.bandEnergy[band] or 0), 0, 1)
+    -- Two offset sine waves give organic movement without total periodicity
+    local w1 = (math.sin(S.elapsed * freq         + bs.phase)       * 0.5 + 0.5)
+    local w2 = (math.sin(S.elapsed * freq * 1.618 + bs.phase * 2.3) * 0.5 + 0.5) * 0.40
+    local wave = (w1 + w2) / 1.40 * bandAmp
+
+    return clamp(wave + (S.bandEnergy[band] or 0), 0, 1)
 end
 
 -- ============================================================
@@ -354,9 +365,6 @@ driver:SetScript("OnUpdate", function(_, dt)
     for b = 1, CFG.NUM_BARS do
         S.bandEnergy[b] = math.max(0, (S.bandEnergy[b] or 0) - tick * decay)
     end
-
-    PollAlertVolumes()
-    ApplyAlertEnergy()
 
     UpdateBars(leftBars,  tick)
     UpdateBars(rightBars, tick)
@@ -507,4 +515,4 @@ SlashCmdList["WOWEQ"] = function(msg)
     end
 end
 
-print("|cff00ccffWoWEQ|r v1.1.1 loaded  —  /woweq bars <4-32> | /woweq show|hide")
+print("|cff00ccffWoWEQ|r v1.1.2 loaded  —  /woweq bars <4-32> | /woweq show|hide")
