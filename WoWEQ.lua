@@ -1,4 +1,4 @@
--- WoWEQ.lua (v1.1.2)
+-- WoWEQ.lua (v1.1.3)
 -- Audio-reactive frequency equalizer for WoW Midnight (Patch 12.x)
 --
 -- Bar layout: horizontal strips stacked vertically inside two side panels.
@@ -116,24 +116,14 @@ local function InjectMidHigh(a) InjectBands(0.45, 0.90, a) end
 local leftPanel  = CreateFrame("Frame", "WoWEQ_Left",  UIParent, "BackdropTemplate")
 local rightPanel = CreateFrame("Frame", "WoWEQ_Right", UIParent, "BackdropTemplate")
 
-local function ConfigurePanel(panel, anchor)
+local function ConfigurePanel(panel, anchor, panelH)
     local w = CFG.MAX_WIDTH + CFG.PADDING * 2
-    local h = CFG.PADDING * 2
-              + CFG.NUM_BARS * CFG.BAR_HEIGHT
-              + (CFG.NUM_BARS - 1) * CFG.BAR_GAP
-    panel:SetSize(w, h)
+    panel:SetSize(w, panelH)
     panel:SetFrameStrata("BACKGROUND")
     panel:SetFrameLevel(1)
     panel:ClearAllPoints()
     panel:SetPoint(anchor, UIParent, anchor, 0, 0)
-    panel:SetBackdrop({
-        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 6,
-        insets   = {left = 2, right = 2, top = 2, bottom = 2},
-    })
-    panel:SetBackdropColor(0, 0, 0, 0.45)
-    panel:SetBackdropBorderColor(0.25, 0.25, 0.25, 0.55)
+    panel:SetBackdrop(nil)  -- no background box, bars only
 end
 
 -- Hide until ADDON_LOADED so there is no flash of unstyled panels
@@ -157,13 +147,14 @@ end
 -- Build one horizontal bar for the given band index.
 -- isRight = true  → bar grows leftward (right panel, mirrored)
 -- isRight = false → bar grows rightward (left panel)
-local function MakeBar(panel, bandIndex, isRight)
-    -- Vertical offset: band 1 is at the bottom, band N at the top
-    local yOff = CFG.PADDING + (bandIndex - 1) * (CFG.BAR_HEIGHT + CFG.BAR_GAP)
+-- slotH = height of each band's slot; barH = rendered bar height within that slot
+local function MakeBar(panel, bandIndex, isRight, slotH, barH)
+    -- Centre the bar vertically within its slot; band 1 at bottom, band N at top
+    local yOff = (bandIndex - 1) * slotH + math.floor((slotH - barH) / 2)
 
     -- Main bar (width animated each frame)
     local f = CreateFrame("Frame", nil, panel)
-    f:SetSize(CFG.MIN_WIDTH, CFG.BAR_HEIGHT)
+    f:SetSize(CFG.MIN_WIDTH, barH)
     if isRight then
         f:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -CFG.PADDING, yOff)
     else
@@ -176,7 +167,7 @@ local function MakeBar(panel, bandIndex, isRight)
 
     -- Bright leading-edge highlight (4 px strip at the far end of the bar)
     local edge = f:CreateTexture(nil, "OVERLAY")
-    edge:SetSize(4, CFG.BAR_HEIGHT)
+    edge:SetSize(4, barH)
     if isRight then
         edge:SetPoint("LEFT",  f, "LEFT",  0, 0)
     else
@@ -186,7 +177,7 @@ local function MakeBar(panel, bandIndex, isRight)
 
     -- Peak indicator (2-px vertical strip, parented to panel so it stays put)
     local pf = CreateFrame("Frame", nil, panel)
-    pf:SetSize(2, CFG.BAR_HEIGHT)
+    pf:SetSize(2, barH)
     pf:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", CFG.PADDING, yOff) -- updated each frame
 
     local ptex = pf:CreateTexture(nil, "ARTWORK")
@@ -202,6 +193,7 @@ local function MakeBar(panel, bandIndex, isRight)
         panel     = panel,
         isRight   = isRight,
         yOff      = yOff,
+        barH      = barH,
         current   = 0,
     }
 end
@@ -219,14 +211,19 @@ local function BuildBars()
         S.bandEnergy[i] = 0
     end
 
-    -- Resize panels to fit the new bar count
-    ConfigurePanel(leftPanel,  "LEFT")
-    ConfigurePanel(rightPanel, "RIGHT")
+    -- Distribute bars evenly across the full screen height.
+    -- 82% of each slot is bar, 18% is the gap between bars.
+    local panelH = math.floor(UIParent:GetHeight())
+    local slotH  = math.floor(panelH / CFG.NUM_BARS)
+    local barH   = math.max(6, math.floor(slotH * 0.82))
+
+    ConfigurePanel(leftPanel,  "LEFT",  panelH)
+    ConfigurePanel(rightPanel, "RIGHT", panelH)
 
     -- Create bars
     for i = 1, CFG.NUM_BARS do
-        leftBars[i]  = MakeBar(leftPanel,  i, false)
-        rightBars[i] = MakeBar(rightPanel, i, true)
+        leftBars[i]  = MakeBar(leftPanel,  i, false, slotH, barH)
+        rightBars[i] = MakeBar(rightPanel, i, true,  slotH, barH)
     end
 end
 
@@ -515,4 +512,4 @@ SlashCmdList["WOWEQ"] = function(msg)
     end
 end
 
-print("|cff00ccffWoWEQ|r v1.1.2 loaded  —  /woweq bars <4-32> | /woweq show|hide")
+print("|cff00ccffWoWEQ|r v1.1.3 loaded  —  /woweq bars <4-32> | /woweq show|hide")

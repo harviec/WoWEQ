@@ -2,7 +2,7 @@
 ## Title: WoWEQ
 ## Notes: Audio-reactive equalizer visualizer on the sides of your screen
 ## Author: harv0
-## Version: 1.1.2
+## Version: 1.1.3
 ## SavedVariables: WoWEQDB
 
 WoWEQ.lua
