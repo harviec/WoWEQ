@@ -1,4 +1,4 @@
--- WoWEQ.lua (v1.1.7)
+-- WoWEQ.lua (v1.1.8)
 -- Audio-reactive frequency equalizer for WoW Midnight (Patch 12.x)
 --
 -- Bar layout: horizontal strips stacked vertically inside two side panels.
@@ -116,22 +116,15 @@ local function InjectMidHigh(a) InjectBands(0.45, 0.90, a) end
 local leftPanel  = CreateFrame("Frame", "WoWEQ_Left",  UIParent, "BackdropTemplate")
 local rightPanel = CreateFrame("Frame", "WoWEQ_Right", UIParent, "BackdropTemplate")
 
-local function ConfigurePanel(panel, anchor)
-    local w = CFG.MAX_WIDTH + CFG.PADDING * 2
-    panel:SetWidth(w)
+local function ConfigurePanel(panel)
     panel:SetFrameStrata("BACKGROUND")
     panel:SetFrameLevel(1)
     panel:ClearAllPoints()
-    -- Anchor to both top and bottom edges so WoW stretches the panel to
-    -- the true screen height regardless of UI scale.
-    if anchor == "LEFT" then
-        panel:SetPoint("TOPLEFT",    UIParent, "TOPLEFT",    0,  0)
-        panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0,  0)
-    else
-        panel:SetPoint("TOPRIGHT",    UIParent, "TOPRIGHT",    0, 0)
-        panel:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", 0, 0)
-    end
-    panel:SetBackdrop(nil)  -- no background box, bars only
+    -- Use SetAllPoints so the panel is an invisible full-screen container.
+    -- Bar frames inside it are then anchored to BOTTOMLEFT / BOTTOMRIGHT,
+    -- which are guaranteed to be exactly at the screen corners.
+    panel:SetAllPoints(UIParent)
+    panel:SetBackdrop(nil)
 end
 
 -- Hide until ADDON_LOADED so there is no flash of unstyled panels
@@ -219,16 +212,14 @@ local function BuildBars()
         S.bandEnergy[i] = 0
     end
 
-    -- Anchor panels edge-to-edge first
-    ConfigurePanel(leftPanel,  "LEFT")
-    ConfigurePanel(rightPanel, "RIGHT")
+    -- SetAllPoints makes panels invisible full-screen containers whose
+    -- BOTTOMLEFT / BOTTOMRIGHT corners sit exactly at the screen edges.
+    ConfigurePanel(leftPanel)
+    ConfigurePanel(rightPanel)
 
-    -- The panels are anchored to UIParent's full height, so UIParent:GetHeight()
-    -- is the correct value for bar layout — reading it back from the panel during
-    -- ADDON_LOADED returns a stale pre-layout value.
-    -- Distribute bars evenly across the full panel height.
-    -- 82% of each slot is bar; 18% is the gap between bars.
-    local panelH = math.floor(UIParent:GetHeight())
+    -- GetScreenHeight() returns physical pixels; divide by UIParent's
+    -- effective scale to convert to WoW UI units (same space as SetPoint offsets).
+    local panelH = math.floor(GetScreenHeight() / UIParent:GetEffectiveScale())
     local slotH  = math.floor(panelH / CFG.NUM_BARS)
     local barH   = math.max(4, math.floor(slotH * 0.82))
 
@@ -527,4 +518,4 @@ SlashCmdList["WOWEQ"] = function(msg)
     end
 end
 
-print("|cff00ccffWoWEQ|r v1.1.7 loaded  —  /woweq bars <4-128> | /woweq show|hide")
+print("|cff00ccffWoWEQ|r v1.1.8 loaded  —  /woweq bars <4-128> | /woweq show|hide")
