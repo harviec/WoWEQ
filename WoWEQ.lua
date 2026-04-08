@@ -1,4 +1,4 @@
--- WoWEQ.lua (v1.1.0)
+-- WoWEQ.lua (v1.1.1)
 -- Audio-reactive frequency equalizer for WoW Midnight (Patch 12.x)
 --
 -- Bar layout: horizontal strips stacked vertically inside two side panels.
@@ -120,8 +120,8 @@ local function ConfigurePanel(panel, anchor)
               + CFG.NUM_BARS * CFG.BAR_HEIGHT
               + (CFG.NUM_BARS - 1) * CFG.BAR_GAP
     panel:SetSize(w, h)
-    panel:SetFrameStrata("MEDIUM")
-    panel:SetFrameLevel(5)
+    panel:SetFrameStrata("BACKGROUND")
+    panel:SetFrameLevel(1)
     panel:ClearAllPoints()
     panel:SetPoint(anchor, UIParent, anchor, 0, 0)
     panel:SetBackdrop({
@@ -378,7 +378,6 @@ events:RegisterEvent("UNIT_SPELLCAST_START")
 events:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 events:RegisterEvent("PLAYER_UPDATE_RESTING")
-events:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 
 events:SetScript("OnEvent", function(_, event, ...)
     -- --------------------------------------------------------
@@ -432,41 +431,45 @@ events:SetScript("OnEvent", function(_, event, ...)
     -- --------------------------------------------------------
     elseif event == "PLAYER_UPDATE_RESTING" then
         S.isResting = IsResting() or false
-
-    -- --------------------------------------------------------
-    elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        local _, subEvent, _, srcGUID, _, _, _, dstGUID = CombatLogGetCurrentEventInfo()
-        local pg = S.playerGUID
-        if not pg then return end
-
-        -- Player is the source of the action
-        if srcGUID == pg then
-            if    subEvent == "SWING_DAMAGE"           then InjectLow    (0.70)
-            elseif subEvent == "SPELL_DAMAGE"
-                or subEvent == "RANGE_DAMAGE"          then InjectMid    (0.65)
-            elseif subEvent == "SPELL_PERIODIC_DAMAGE" then InjectLowMid (0.35)
-            elseif subEvent == "SPELL_HEAL"            then InjectLowMid (0.45)
-            elseif subEvent == "SPELL_PERIODIC_HEAL"   then InjectLowMid (0.25)
-            elseif subEvent == "SPELL_CAST_SUCCESS"    then InjectMidHigh(0.40)
-            elseif subEvent == "SPELL_AURA_APPLIED"    then InjectHigh   (0.30)
-            end
-        end
-
-        -- Player is taking damage
-        if dstGUID == pg then
-            if    subEvent == "SWING_DAMAGE"           then InjectLow    (0.55)
-            elseif subEvent == "SPELL_DAMAGE"
-                or subEvent == "RANGE_DAMAGE"          then InjectMid    (0.50)
-            elseif subEvent == "SPELL_PERIODIC_DAMAGE" then InjectLowMid (0.30)
-            end
-        end
-
-        -- Deaths: full spectrum burst
-        if subEvent == "UNIT_DIED" then
-            InjectAll(dstGUID == pg and 1.00 or 0.55)
-        end
     end
 end)
+
+-- COMBAT_LOG_EVENT_UNFILTERED is protected in Midnight and cannot be registered
+-- via RegisterEvent(). Use RegisterEventCallback() instead (added Patch 12.0.0).
+local function OnCombatLog()
+    local _, subEvent, _, srcGUID, _, _, _, dstGUID = CombatLogGetCurrentEventInfo()
+    local pg = S.playerGUID
+    if not pg then return end
+
+    -- Player is the source of the action
+    if srcGUID == pg then
+        if    subEvent == "SWING_DAMAGE"           then InjectLow    (0.70)
+        elseif subEvent == "SPELL_DAMAGE"
+            or subEvent == "RANGE_DAMAGE"          then InjectMid    (0.65)
+        elseif subEvent == "SPELL_PERIODIC_DAMAGE" then InjectLowMid (0.35)
+        elseif subEvent == "SPELL_HEAL"            then InjectLowMid (0.45)
+        elseif subEvent == "SPELL_PERIODIC_HEAL"   then InjectLowMid (0.25)
+        elseif subEvent == "SPELL_CAST_SUCCESS"    then InjectMidHigh(0.40)
+        elseif subEvent == "SPELL_AURA_APPLIED"    then InjectHigh   (0.30)
+        end
+    end
+
+    -- Player is taking damage
+    if dstGUID == pg then
+        if    subEvent == "SWING_DAMAGE"           then InjectLow    (0.55)
+        elseif subEvent == "SPELL_DAMAGE"
+            or subEvent == "RANGE_DAMAGE"          then InjectMid    (0.50)
+        elseif subEvent == "SPELL_PERIODIC_DAMAGE" then InjectLowMid (0.30)
+        end
+    end
+
+    -- Deaths: full spectrum burst
+    if subEvent == "UNIT_DIED" then
+        InjectAll(dstGUID == pg and 1.00 or 0.55)
+    end
+end
+
+events:RegisterEventCallback("COMBAT_LOG_EVENT_UNFILTERED", OnCombatLog)
 
 -- ============================================================
 -- Slash command:  /woweq [show|hide|bars N]
@@ -504,4 +507,4 @@ SlashCmdList["WOWEQ"] = function(msg)
     end
 end
 
-print("|cff00ccffWoWEQ|r v1.1.0 loaded  —  /woweq bars <4-32> | /woweq show|hide")
+print("|cff00ccffWoWEQ|r v1.1.1 loaded  —  /woweq bars <4-32> | /woweq show|hide")
