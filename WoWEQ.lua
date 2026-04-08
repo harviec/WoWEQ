@@ -1,4 +1,4 @@
--- WoWEQ.lua (v1.1.3)
+-- WoWEQ.lua (v1.1.4)
 -- Audio-reactive frequency equalizer for WoW Midnight (Patch 12.x)
 --
 -- Bar layout: horizontal strips stacked vertically inside two side panels.
@@ -22,7 +22,7 @@
 -- ============================================================
 local CFG = {
     -- user-controlled; default overridden from WoWEQDB.numBars at ADDON_LOADED
-    NUM_BARS      = 12,
+    NUM_BARS      = 64,
 
     -- bar geometry
     BAR_HEIGHT    = 14,     -- px: height of each horizontal bar
@@ -116,13 +116,21 @@ local function InjectMidHigh(a) InjectBands(0.45, 0.90, a) end
 local leftPanel  = CreateFrame("Frame", "WoWEQ_Left",  UIParent, "BackdropTemplate")
 local rightPanel = CreateFrame("Frame", "WoWEQ_Right", UIParent, "BackdropTemplate")
 
-local function ConfigurePanel(panel, anchor, panelH)
+local function ConfigurePanel(panel, anchor)
     local w = CFG.MAX_WIDTH + CFG.PADDING * 2
-    panel:SetSize(w, panelH)
+    panel:SetWidth(w)
     panel:SetFrameStrata("BACKGROUND")
     panel:SetFrameLevel(1)
     panel:ClearAllPoints()
-    panel:SetPoint(anchor, UIParent, anchor, 0, 0)
+    -- Anchor to both top and bottom edges so WoW stretches the panel to
+    -- the true screen height regardless of UI scale.
+    if anchor == "LEFT" then
+        panel:SetPoint("TOPLEFT",    UIParent, "TOPLEFT",    0,  0)
+        panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0,  0)
+    else
+        panel:SetPoint("TOPRIGHT",    UIParent, "TOPRIGHT",    0, 0)
+        panel:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", 0, 0)
+    end
     panel:SetBackdrop(nil)  -- no background box, bars only
 end
 
@@ -211,14 +219,15 @@ local function BuildBars()
         S.bandEnergy[i] = 0
     end
 
-    -- Distribute bars evenly across the full screen height.
-    -- 82% of each slot is bar, 18% is the gap between bars.
-    local panelH = math.floor(UIParent:GetHeight())
-    local slotH  = math.floor(panelH / CFG.NUM_BARS)
-    local barH   = math.max(6, math.floor(slotH * 0.82))
+    -- Anchor panels edge-to-edge first so GetHeight() reflects true screen height
+    ConfigurePanel(leftPanel,  "LEFT")
+    ConfigurePanel(rightPanel, "RIGHT")
 
-    ConfigurePanel(leftPanel,  "LEFT",  panelH)
-    ConfigurePanel(rightPanel, "RIGHT", panelH)
+    -- Distribute bars evenly across the full panel height.
+    -- 82% of each slot is bar; 18% is the gap between bars.
+    local panelH = math.floor(leftPanel:GetHeight())
+    local slotH  = math.floor(panelH / CFG.NUM_BARS)
+    local barH   = math.max(4, math.floor(slotH * 0.82))
 
     -- Create bars
     for i = 1, CFG.NUM_BARS do
@@ -493,8 +502,8 @@ SlashCmdList["WOWEQ"] = function(msg)
 
     elseif cmd == "bars" then
         local n = tonumber(arg)
-        if not n or n < 4 or n > 32 then
-            print("|cff00ccffWoWEQ|r Usage: /woweq bars <4-32>")
+        if not n or n < 4 or n > 128 then
+            print("|cff00ccffWoWEQ|r Usage: /woweq bars <4-128>")
             return
         end
         CFG.NUM_BARS        = n
@@ -512,4 +521,4 @@ SlashCmdList["WOWEQ"] = function(msg)
     end
 end
 
-print("|cff00ccffWoWEQ|r v1.1.3 loaded  —  /woweq bars <4-32> | /woweq show|hide")
+print("|cff00ccffWoWEQ|r v1.1.4 loaded  —  /woweq bars <4-128> | /woweq show|hide")
