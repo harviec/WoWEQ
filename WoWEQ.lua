@@ -1,4 +1,4 @@
--- WoWEQ.lua (v1.1.5)
+-- WoWEQ.lua (v1.1.6)
 -- Audio-reactive frequency equalizer for WoW Midnight (Patch 12.x)
 --
 -- Bar layout: horizontal strips stacked vertically inside two side panels.
@@ -219,13 +219,16 @@ local function BuildBars()
         S.bandEnergy[i] = 0
     end
 
-    -- Anchor panels edge-to-edge first so GetHeight() reflects true screen height
+    -- Anchor panels edge-to-edge first
     ConfigurePanel(leftPanel,  "LEFT")
     ConfigurePanel(rightPanel, "RIGHT")
 
+    -- The panels are anchored to UIParent's full height, so UIParent:GetHeight()
+    -- is the correct value for bar layout — reading it back from the panel during
+    -- ADDON_LOADED returns a stale pre-layout value.
     -- Distribute bars evenly across the full panel height.
     -- 82% of each slot is bar; 18% is the gap between bars.
-    local panelH = math.floor(leftPanel:GetHeight())
+    local panelH = math.floor(UIParent:GetHeight())
     local slotH  = math.floor(panelH / CFG.NUM_BARS)
     local barH   = math.max(4, math.floor(slotH * 0.82))
 
@@ -526,4 +529,4 @@ SlashCmdList["WOWEQ"] = function(msg)
     end
 end
 
-print("|cff00ccffWoWEQ|r v1.1.5 loaded  —  /woweq bars <4-128> | /woweq show|hide")
+print("|cff00ccffWoWEQ|r v1.1.6 loaded  —  /woweq bars <4-128> | /woweq show|hide")
