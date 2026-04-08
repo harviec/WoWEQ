@@ -1,4 +1,4 @@
--- WoWEQ.lua (v1.1.6)
+-- WoWEQ.lua (v1.1.7)
 -- Audio-reactive frequency equalizer for WoW Midnight (Patch 12.x)
 --
 -- Bar layout: horizontal strips stacked vertically inside two side panels.
@@ -464,15 +464,13 @@ events:SetScript("OnEvent", function(_, event, ...)
         elseif unit == "target" then InjectHigh(0.20) end
 
     -- --------------------------------------------------------
-    -- Health changes: drop in player health → bass thump
+    -- Health changes → bass thump.
+    -- UnitHealth() returns a secret value in Midnight and cannot be used
+    -- in arithmetic. The event firing is signal enough; inject flat amounts.
     elseif event == "UNIT_HEALTH" then
         local unit = ...
-        if unit == "player" then
-            local pct = UnitHealth("player") / math.max(1, UnitHealthMax("player"))
-            -- Scale bass injection with damage severity; ignore passive regen ticks
-            if pct < 0.99 and S.inCombat then
-                InjectLow(0.30 + (1.0 - pct) * 0.40)
-            end
+        if unit == "player" and S.inCombat then
+            InjectLow(0.45)
         elseif unit == "target" and S.inCombat then
             InjectLow(0.25)
         end
@@ -529,4 +527,4 @@ SlashCmdList["WOWEQ"] = function(msg)
     end
 end
 
-print("|cff00ccffWoWEQ|r v1.1.6 loaded  —  /woweq bars <4-128> | /woweq show|hide")
+print("|cff00ccffWoWEQ|r v1.1.7 loaded  —  /woweq bars <4-128> | /woweq show|hide")
